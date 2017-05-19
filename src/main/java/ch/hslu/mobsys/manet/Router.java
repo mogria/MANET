@@ -88,6 +88,7 @@ public class Router implements Runnable {
             while (iter.hasNext()) {
                  onSelecionKey(iter.next());
             }
+            Thread.sleep(10);
         }
     }
 
