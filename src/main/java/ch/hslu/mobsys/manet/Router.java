@@ -139,10 +139,13 @@ public class Router implements Runnable {
     }
 
     public void sendMessage(final byte[] message) {
-
+        ByteBuffer writeBuffer = ByteBuffer.allocate(MulticastMessage.TELEGRAM_L);
+        writeBuffer.put(message);
+        writeBuffer.flip();
+        try {
+            udpChannel.write(writeBuffer);
+        } catch (IOException ex) {
+            logger.warn(ex);
+        }
     }
-
-
-
-
 }
