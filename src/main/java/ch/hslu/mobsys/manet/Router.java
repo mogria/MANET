@@ -42,11 +42,14 @@ public class Router implements Runnable {
 
     private static final int RECEIVE_BUFFER_SIZE = 2000;
 
+    private int messageCounter;
+
     public Router(final FixedSizeList messageWindow) {
         receiveBuffer = ByteBuffer.allocate(RECEIVE_BUFFER_SIZE);
         messageBuffer = new byte[MulticastMessage.TELEGRAM_L];
         this.messageWindow = messageWindow;
         this.messageHandlers = new ArrayList<MessageHandler>();
+        messageCounter = 0;
     }
 
     public double getRetransmissionProbability() {
@@ -132,11 +135,13 @@ public class Router implements Runnable {
 
     private void onMessage(final byte[] messageBytes) {
         final MulticastMessage message = new MulticastMessage(messageBytes);
-
+        messageCounter++;
+        message.setCountReceived(messageCounter);
         if(!messageWindow.contains(message)) {
             messageWindow.add(message);
             if(ThreadLocalRandom.current().nextDouble() < retransmissionProbability) {
                 sendMessage(messageBytes);
+                message.setRetransmitted(true);
             }
         }
 
