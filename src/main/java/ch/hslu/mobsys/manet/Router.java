@@ -88,7 +88,13 @@ public class Router implements Runnable {
             while (iter.hasNext()) {
                  onSelecionKey(iter.next());
             }
-            Thread.sleep(10);
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException ex) {
+                logger.warn("Router got interrupted");
+                logger.warn(ex);
+                return;
+            }
         }
     }
 
