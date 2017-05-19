@@ -4,8 +4,10 @@ package ch.hslu.mobsys.manet;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
+import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.cell.PropertyValueFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,6 +22,16 @@ public class ManetGUIController {
     FixedSizeList messageWindow;
     Router router;
     Sender sender;
+    @FXML
+    private TableColumn colIdentifier;
+    @FXML
+    private TableColumn colMessage;
+    @FXML
+    private TableColumn colCountReceived;
+    @FXML
+    private TableColumn colRetransmitted;
+    @FXML
+    private TableColumn colUid;
     @FXML
     private Button outputText;
 
@@ -44,15 +56,21 @@ public class ManetGUIController {
     @FXML
     public void initialize() {
 
+        colMessage.setCellValueFactory(new PropertyValueFactory<MulticastMessage, String>("message"));
+        colIdentifier.setCellValueFactory(new PropertyValueFactory<MulticastMessage, String>("identifier"));
+        colUid.setCellValueFactory(new PropertyValueFactory<MulticastMessage, Integer>("uId"));
+        colCountReceived.setCellValueFactory(new PropertyValueFactory<MulticastMessage, Integer>("countReceived"));
+        colRetransmitted.setCellValueFactory(new PropertyValueFactory<MulticastMessage, Boolean>("retransmitted"));
         messageWindow = new FixedSizeList(new ArrayList());
+        tblReceivedMessages.setItems(messageWindow);
         sender = new Sender();
         router = new Router(messageWindow,sender);
-
         router.addMessageHandler(message -> {
             messageWindow.add(message);
             System.out.println("sent");
             logger.info("Message Received");
         });
+
         new Thread(router).start();
 
 
@@ -73,6 +91,7 @@ public class ManetGUIController {
 
         messageToSend.setUId(uid);
         sender.sendMessage(messageToSend);
+        messageWindow.add(messageToSend);
 
     }
 

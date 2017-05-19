@@ -34,10 +34,11 @@
       </GridPane>
       <TableView fx:id="tblReceivedMessages" prefHeight="500.0" prefWidth="200.0">
         <columns>
-          <TableColumn prefWidth="-1.0" text="Identifier" />
-          <TableColumn prefWidth="-1.0" text="Message" />
-            <TableColumn prefWidth="-1.0" text="Count Received" />
-            <TableColumn prefWidth="-1.0" text="Retransmitted" />
+            <TableColumn fx:id="colUid" prefWidth="75.0" text="Uid" />
+          <TableColumn fx:id="colIdentifier" prefWidth="100.0" text="Identifier" />
+          <TableColumn fx:id="colMessage" prefWidth="400.0" text="Message" />
+            <TableColumn fx:id="colCountReceived" prefWidth="150.0" text="Count Received" />
+            <TableColumn fx:id="colRetransmitted" prefWidth="150.0" text="Retransmitted" />
         </columns>
       </TableView>
       <HBox prefHeight="100.0" prefWidth="200.0">
