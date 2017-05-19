@@ -10,7 +10,8 @@ import java.util.ArrayList;
 public class CommandLineRouter {
     public static void main(final String[] args) {
         final FixedSizeList messageWindow = new FixedSizeList(new ArrayList());
-        final Router router = new Router(messageWindow);
+        Sender sender = new Sender();
+        final Router router = new Router(messageWindow, sender);
         router.addMessageHandler(message -> {
             System.out.println(message.getUniqueIdentifier() + "|" + message.getIdentifier() + "|" + message.getMessage());
 
