@@ -1,4 +1,4 @@
-package main;
+package ch.hslu.mobsys.manet;
 
 import com.sun.javafx.collections.ObservableListWrapper;
 

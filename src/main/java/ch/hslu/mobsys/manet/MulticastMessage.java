@@ -1,4 +1,4 @@
-package main;
+package ch.hslu.mobsys.manet;
 
 import javafx.beans.property.*;
 
