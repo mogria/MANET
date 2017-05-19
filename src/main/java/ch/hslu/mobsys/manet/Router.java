@@ -29,6 +29,7 @@ public class Router implements Runnable {
     }
 
     private FixedSizeList messageWindow;
+    private Sender sender;
 
     private ByteBuffer receiveBuffer;
     private byte[] messageBuffer;
@@ -44,11 +45,12 @@ public class Router implements Runnable {
 
     private int messageCounter;
 
-    public Router(final FixedSizeList messageWindow) {
+    public Router(final FixedSizeList messageWindow, final Sender sender) {
         receiveBuffer = ByteBuffer.allocate(RECEIVE_BUFFER_SIZE);
         messageBuffer = new byte[MulticastMessage.TELEGRAM_L];
         this.messageWindow = messageWindow;
         this.messageHandlers = new ArrayList<MessageHandler>();
+        this.sender = sender;
         messageCounter = 0;
     }
 
@@ -141,7 +143,7 @@ public class Router implements Runnable {
         if(!messageWindow.contains(message)) {
             messageWindow.add(message);
             if(ThreadLocalRandom.current().nextDouble() < retransmissionProbability) {
-                sendMessage(messageBytes);
+                sender.sendMessage(messageBytes);
                 message.setRetransmitted(true);
             }
         }
@@ -151,18 +153,4 @@ public class Router implements Runnable {
         });
     }
 
-    public void sendMessage(final MulticastMessage message) {
-        sendMessage(message.getTelegram());
-    }
-
-    public void sendMessage(final byte[] message) {
-        ByteBuffer writeBuffer = ByteBuffer.allocate(MulticastMessage.TELEGRAM_L);
-        writeBuffer.put(message);
-        writeBuffer.flip();
-        try {
-            udpChannel.write(writeBuffer);
-        } catch (IOException ex) {
-            logger.warn(ex);
-        }
-    }
 }
