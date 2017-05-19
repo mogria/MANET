@@ -61,12 +61,16 @@ public class Router implements Runnable {
         messageHandlers.add(messageHandler);
     }
 
+    public void openChannel() throws IOException {
+        udpChannel = DatagramChannel.open();
+        final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
+        udpChannel.socket().bind(new InetSocketAddress(multicastAddr, 1337));
+    }
+
 
     public void run() {
         try {
-            udpChannel = DatagramChannel.open();
-            final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
-            udpChannel.socket().bind(new InetSocketAddress(multicastAddr, 1337));
+            openChannel();
             // cisco7039-0360
             selector = Selector.open();
             udpChannel.register(selector, SelectionKey.OP_READ);
