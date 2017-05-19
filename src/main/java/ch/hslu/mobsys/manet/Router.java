@@ -8,7 +8,9 @@ import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.logging.log4j.LogManager;
@@ -19,7 +21,12 @@ import org.apache.logging.log4j.Logger;
  *
  * @author Moritz Küttel
  */
-public class Router {
+public class Router implements Runnable {
+
+    @FunctionalInterface
+    public interface MessageHandler {
+        void handleMessage(MulticastMessage message);
+    }
 
     private FixedSizeList messageWindow;
 
@@ -29,6 +36,8 @@ public class Router {
     private Selector selector;
     private double retransmissionProbability;
 
+    private List<MessageHandler> messageHandlers;
+
     private Logger logger = LogManager.getLogger(Router.class);
 
     private static final int RECEIVE_BUFFER_SIZE = 2000;
@@ -37,9 +46,8 @@ public class Router {
         receiveBuffer = ByteBuffer.allocate(RECEIVE_BUFFER_SIZE);
         messageBuffer = new byte[MulticastMessage.TELEGRAM_L];
         this.messageWindow = messageWindow;
-
+        this.messageHandlers = new ArrayList<MessageHandler>();
     }
-
 
     public double getRetransmissionProbability() {
         return retransmissionProbability;
@@ -49,12 +57,20 @@ public class Router {
         this.retransmissionProbability = retransmissionProbability;
     }
 
+    public void addMessageHandler(MessageHandler messageHandler) {
+        messageHandlers.add(messageHandler);
+    }
+
+    public void openChannel() throws IOException {
+        udpChannel = DatagramChannel.open();
+        final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
+        udpChannel.socket().bind(new InetSocketAddress(multicastAddr, 1337));
+    }
+
 
     public void run() {
         try {
-            udpChannel = DatagramChannel.open();
-            final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
-            udpChannel.socket().bind(new InetSocketAddress(multicastAddr, 1337));
+            openChannel();
             // cisco7039-0360
             selector = Selector.open();
             udpChannel.register(selector, SelectionKey.OP_READ);
@@ -75,7 +91,7 @@ public class Router {
         }
     }
 
-    public void onSelecionKey(final SelectionKey key) {
+    private void onSelecionKey(final SelectionKey key) {
         if (!key.isValid()) {
             return;
         }
@@ -91,7 +107,7 @@ public class Router {
         return receiveBuffer.remaining() < RECEIVE_BUFFER_SIZE - MulticastMessage.TELEGRAM_L;
     }
 
-    public void onRead(final SocketChannel channel) {
+    private void onRead(final SocketChannel channel) {
         try {
             channel.read(receiveBuffer);
             if (isFullMessageInBuffer()) {
@@ -107,7 +123,7 @@ public class Router {
         }
     }
 
-    public void onMessage(final byte[] messageBytes) {
+    private void onMessage(final byte[] messageBytes) {
         final MulticastMessage message = new MulticastMessage(messageBytes);
 
         if(!messageWindow.contains(message)) {
@@ -116,6 +132,10 @@ public class Router {
                 sendMessage(messageBytes);
             }
         }
+
+        messageHandlers.forEach((messageHandler) -> {
+            messageHandler.handleMessage(message);
+        });
     }
 
     public void sendMessage(final MulticastMessage message) {
