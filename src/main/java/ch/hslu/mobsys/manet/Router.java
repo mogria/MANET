@@ -66,6 +66,7 @@ public class Router implements Runnable {
 
     public void openChannel() throws IOException {
         udpChannel = DatagramChannel.open();
+        udpChannel.configureBlocking(false);
         final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
         udpChannel.socket().bind(new InetSocketAddress(multicastAddr, 1337));
     }
