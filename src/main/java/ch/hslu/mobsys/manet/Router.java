@@ -9,6 +9,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.logging.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -95,10 +96,13 @@ public class Router {
     }
 
     public void sendMessage(final byte[] message) {
-
+        ByteBuffer writeBuffer = ByteBuffer.allocate(MulticastMessage.TELEGRAM_L);
+        writeBuffer.put(message);
+        writeBuffer.flip();
+        try {
+            udpChannel.write(writeBuffer);
+        } catch (IOException ex) {
+            logger.warn(ex);
+        }
     }
-
-
-
-
 }
