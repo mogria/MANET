@@ -6,6 +6,8 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 
@@ -14,8 +16,10 @@ import java.util.ArrayList;
  */
 public class ManetGUIController {
 
+    private Logger logger = LogManager.getLogger(ManetGUIController.class);
     FixedSizeList messageWindow;
     Router router;
+    Sender sender;
     @FXML
     private Button outputText;
 
@@ -39,16 +43,24 @@ public class ManetGUIController {
 
     @FXML
     public void initialize() {
+
         messageWindow = new FixedSizeList(new ArrayList());
-        router = new Router(messageWindow);
+        sender = new Sender();
+        router = new Router(messageWindow,sender);
+
         router.addMessageHandler(message -> {
-            System.out.println("Test");
+            messageWindow.add(message);
+            System.out.println("sent");
+            logger.info("Message Received");
         });
-        router.run();
+        new Thread(router).start();
+
+
     }
 
     @FXML
     private void send(){
+        logger.info("Send pressed");
         MulticastMessage messageToSend = new MulticastMessage();
         messageToSend.setIdentifier(txtIdent.getText());
         messageToSend.setMessage(txtMessage.getText());
@@ -58,8 +70,9 @@ public class ManetGUIController {
         }catch (NumberFormatException e){
 
         }
-        messageToSend.setUId(uid);
 
+        messageToSend.setUId(uid);
+        sender.sendMessage(messageToSend);
 
     }
 
