@@ -10,6 +10,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -26,6 +27,7 @@ public class Router {
     private byte[] messageBuffer;
     private DatagramChannel udpChannel;
     private Selector selector;
+    private double retransmissionProbability;
 
     private Logger logger = LogManager.getLogger(Router.class);
 
@@ -38,13 +40,30 @@ public class Router {
 
     }
 
-    public void run() throws IOException {
-        udpChannel = DatagramChannel.open();
-        final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
-        udpChannel.socket().bind(new InetSocketAddress(multicastAddr, 1337));
-        // cisco7039-0360
-        selector = Selector.open();
-        udpChannel.register(selector, SelectionKey.OP_READ);
+
+    public double getRetransmissionProbability() {
+        return retransmissionProbability;
+    }
+
+    public void setRetransmissionProbability(double retransmissionProbability) {
+        this.retransmissionProbability = retransmissionProbability;
+    }
+
+
+    public void run() {
+        try {
+            udpChannel = DatagramChannel.open();
+            final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
+            udpChannel.socket().bind(new InetSocketAddress(multicastAddr, 1337));
+            // cisco7039-0360
+            selector = Selector.open();
+            udpChannel.register(selector, SelectionKey.OP_READ);
+
+        } catch (IOException ex) {
+            logger.fatal("Could not fücking kreate the UDP fuckin socket dings");
+            logger.fatal(ex);
+            return;
+        }
 
         while (true) {
             final Set<SelectionKey> readyChannels = selector.selectedKeys();
@@ -83,6 +102,7 @@ public class Router {
             }
 
         } catch (IOException ex) {
+            logger.warn("Could not read from channel");
             logger.warn(ex);
         }
     }
@@ -92,7 +112,9 @@ public class Router {
 
         if(!messageWindow.contains(message)) {
             messageWindow.add(message);
-            sendMessage(messageBytes);
+            if(ThreadLocalRandom.current().nextDouble() < retransmissionProbability) {
+                sendMessage(messageBytes);
+            }
         }
     }
 
