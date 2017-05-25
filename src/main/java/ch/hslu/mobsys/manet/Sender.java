@@ -27,7 +27,7 @@ public class Sender {
     public Sender() {
         try {
             channel = DatagramChannel.open();
-            final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
+            final InetAddress multicastAddr = InetAddress.getByAddress(/*new byte[]{(byte)127, (byte)0, (byte)0, (byte)1} */ new byte[]{(byte)127, (byte)0, (byte)0, (byte)1});
             channel.connect(new InetSocketAddress(multicastAddr, 1337));
         } catch (IOException ex) {
             logger.fatal("Could not fücking kreate the UDP fuckin socket dings");

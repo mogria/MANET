@@ -1,18 +1,20 @@
 package ch.hslu.mobsys.manet;
 
+import com.sun.jmx.snmp.ThreadContext;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.SocketAddress;
+import java.net.StandardProtocolFamily;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.MembershipKey;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,7 +36,7 @@ public class Router implements Runnable {
     private ByteBuffer receiveBuffer;
     private byte[] messageBuffer;
     private DatagramChannel udpChannel;
-    private Selector selector;
+    private MembershipKey membershipKey;
     private double retransmissionProbability;
 
     private List<MessageHandler> messageHandlers;
@@ -67,10 +69,16 @@ public class Router implements Runnable {
     }
 
     public void openChannel() throws IOException {
-        udpChannel = DatagramChannel.open();
+        final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)127, (byte)0, (byte)0, (byte)1});
+        final NetworkInterface ni = NetworkInterface.getByInetAddress(multicastAddr);
+        final InetAddress multicastGroup =  InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
+        udpChannel = DatagramChannel.open(StandardProtocolFamily.INET)
+                .setOption(StandardSocketOptions.SO_REUSEADDR, true)
+                .bind(new InetSocketAddress(multicastAddr, 1337))
+                .setOption(StandardSocketOptions.IP_MULTICAST_IF, ni);
+
         udpChannel.configureBlocking(false);
-        final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
-        udpChannel.socket().bind(new InetSocketAddress(multicastAddr, 1337));
+        membershipKey = udpChannel.join(multicastGroup, ni);
     }
 
 
@@ -78,9 +86,6 @@ public class Router implements Runnable {
         try {
             openChannel();
             // cisco7039-0360
-            selector = Selector.open();
-            udpChannel.register(selector, SelectionKey.OP_READ);
-
         } catch (IOException ex) {
             logger.fatal("Could not fücking kreate the UDP fuckin socket dings");
             logger.fatal(ex);
@@ -88,12 +93,10 @@ public class Router implements Runnable {
         }
 
         while (true) {
-            final Set<SelectionKey> readyChannels = selector.selectedKeys();
-
-            final Iterator<SelectionKey> iter = readyChannels.iterator();
-            while (iter.hasNext()) {
-                 onSelecionKey(iter.next());
+            if (membershipKey.isValid()) {
+                onRead(udpChannel);
             }
+
             try {
                 Thread.sleep(10);
             } catch (InterruptedException ex) {
@@ -104,30 +107,26 @@ public class Router implements Runnable {
         }
     }
 
-    private void onSelecionKey(final SelectionKey key) {
-        if (!key.isValid()) {
-            return;
-        }
-
-        if (key.isReadable()) {
-            final SocketChannel socketChannel = (SocketChannel) key.channel();
-            onRead(socketChannel);
-        }
-
-    }
-
     private boolean isFullMessageInBuffer() {
-        return receiveBuffer.remaining() < RECEIVE_BUFFER_SIZE - MulticastMessage.TELEGRAM_L;
+        return receiveBuffer.remaining() <= RECEIVE_BUFFER_SIZE - MulticastMessage.TELEGRAM_L;
     }
 
-    private void onRead(final SocketChannel channel) {
+    private void onRead(final DatagramChannel channel) {
+        logger.debug("read event occured");
         try {
-            channel.read(receiveBuffer);
-            if (isFullMessageInBuffer()) {
-                receiveBuffer.flip();
-                receiveBuffer.put(messageBuffer);
-                onMessage(messageBuffer);
-                receiveBuffer.flip();
+            final SocketAddress networkParticipant = channel.receive(receiveBuffer);
+            if(networkParticipant == null) return;
+
+            // attach ip address / port to log4j messages
+            try(final CloseableThreadContext.Instance ctc = CloseableThreadContext.put("socketaddress", networkParticipant.toString())) {
+                ThreadContext.push("test", 5678);
+                logger.info("Received data");
+                if (isFullMessageInBuffer()) {
+                    receiveBuffer.flip();
+                    receiveBuffer.put(messageBuffer);
+                    onMessage(messageBuffer);
+                    receiveBuffer.flip();
+                }
             }
 
         } catch (IOException ex) {
@@ -137,15 +136,21 @@ public class Router implements Runnable {
     }
 
     private void onMessage(final byte[] messageBytes) {
+        logger.info("Received full message");
         final MulticastMessage message = new MulticastMessage(messageBytes);
+        logger.info(message);
         messageCounter++;
         message.setCountReceived(messageCounter);
         if(!messageWindow.contains(message)) {
+            logger.info("message was never seen before, temporarily save it");
             messageWindow.add(message);
             if(ThreadLocalRandom.current().nextDouble() < retransmissionProbability) {
+                logger.info("retransmitting with probability of " + retransmissionProbability);
                 sender.sendMessage(messageBytes);
                 message.setRetransmitted(true);
             }
+        } else {
+            logger.info("not retransmitting, message has already been seen");
         }
 
         messageHandlers.forEach((messageHandler) -> {
