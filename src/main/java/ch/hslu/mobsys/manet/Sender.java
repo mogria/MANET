@@ -25,7 +25,7 @@ public class Sender {
     public Sender() {
         try {
             channel = DatagramChannel.open();
-            channel.connect(NetUtil.getLoopbackInetSocketAddress());
+            channel.connect(NetUtil.getMulticastInetSocketAddress());
         } catch (IOException ex) {
             logger.fatal("Could not fücking kreate the UDP fuckin socket dings");
             logger.fatal(ex);

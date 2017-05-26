@@ -69,7 +69,7 @@ public class Router implements Runnable {
     }
 
     public void openChannel() throws IOException {
-        final NetworkInterface ni = NetUtil.getCorrectNetworkInterface(true);
+        final NetworkInterface ni = NetUtil.getCorrectNetworkInterface(false);
         logger.info("Using the following network interface");
         logger.info(ni);
         final InetAddress bindAddress = NetUtil.getIpv4Address(ni);
