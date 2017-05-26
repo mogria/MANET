@@ -69,16 +69,18 @@ public class Router implements Runnable {
     }
 
     public void openChannel() throws IOException {
-        final InetAddress multicastAddr = InetAddress.getByAddress(new byte[]{(byte)127, (byte)0, (byte)0, (byte)1});
-        final NetworkInterface ni = NetworkInterface.getByInetAddress(multicastAddr);
-        final InetAddress multicastGroup =  InetAddress.getByAddress(new byte[]{(byte)239, (byte)255, (byte)255, (byte)250});
+        final NetworkInterface ni = NetUtil.getCorrectNetworkInterface(true);
+        logger.info("Using the following network interface");
+        logger.info(ni);
+        final InetAddress bindAddress = NetUtil.getIpv4Address(ni);
+        logger.info(bindAddress);
         udpChannel = DatagramChannel.open(StandardProtocolFamily.INET)
                 .setOption(StandardSocketOptions.SO_REUSEADDR, true)
-                .bind(new InetSocketAddress(multicastAddr, 1337))
+                .bind(new InetSocketAddress(bindAddress, 1337))
                 .setOption(StandardSocketOptions.IP_MULTICAST_IF, ni);
 
         udpChannel.configureBlocking(false);
-        membershipKey = udpChannel.join(multicastGroup, ni);
+        membershipKey = udpChannel.join(NetUtil.getMulticastInetAddress(), ni);
     }
 
 
@@ -94,7 +96,7 @@ public class Router implements Runnable {
 
         while (true) {
             if (membershipKey.isValid()) {
-                onRead(udpChannel);
+                onRead();
             }
 
             try {
@@ -111,10 +113,10 @@ public class Router implements Runnable {
         return receiveBuffer.remaining() <= RECEIVE_BUFFER_SIZE - MulticastMessage.TELEGRAM_L;
     }
 
-    private void onRead(final DatagramChannel channel) {
+    private void onRead() {
         logger.debug("read event occured");
         try {
-            final SocketAddress networkParticipant = channel.receive(receiveBuffer);
+            final SocketAddress networkParticipant = udpChannel.receive(receiveBuffer);
             if(networkParticipant == null) return;
 
             // attach ip address / port to log4j messages
@@ -122,10 +124,11 @@ public class Router implements Runnable {
                 ThreadContext.push("test", 5678);
                 logger.info("Received data");
                 if (isFullMessageInBuffer()) {
+
                     receiveBuffer.flip();
-                    receiveBuffer.put(messageBuffer);
+                    receiveBuffer.get(messageBuffer);
+                    receiveBuffer.flip();
                     onMessage(messageBuffer);
-                    receiveBuffer.flip();
                 }
             }
 
@@ -141,7 +144,9 @@ public class Router implements Runnable {
         logger.info(message);
         messageCounter++;
         message.setCountReceived(messageCounter);
-        if(!messageWindow.contains(message)) {
+        if(messageWindow.contains(message)) {
+            logger.info("not retransmitting, message has already been seen");
+        } else {
             logger.info("message was never seen before, temporarily save it");
             messageWindow.add(message);
             if(ThreadLocalRandom.current().nextDouble() < retransmissionProbability) {
@@ -149,8 +154,6 @@ public class Router implements Runnable {
                 sender.sendMessage(messageBytes);
                 message.setRetransmitted(true);
             }
-        } else {
-            logger.info("not retransmitting, message has already been seen");
         }
 
         messageHandlers.forEach((messageHandler) -> {
